@@ -34,20 +34,21 @@ const queryClient = new QueryClient({
 
 const defaultConfig: AppConfig = {
   theme: "light",
-  relayUrl: "wss://relay.ditto.pub",
+  relayUrl: "wss://relay.nostr.band", // Primary relay for UI display
 };
 
 const presetRelays = [
-  { url: 'wss://relay.ditto.pub', name: 'Ditto' },
   { url: 'wss://relay.nostr.band', name: 'Nostr.Band' },
   { url: 'wss://relay.damus.io', name: 'Damus' },
   { url: 'wss://relay.primal.net', name: 'Primal' },
+  { url: 'wss://nos.lol', name: 'nos.lol' },
+  { url: 'wss://relay.snort.social', name: 'Snort' },
 ];
 
 const dmConfig: DMConfig = {
   // Enable or disable DMs entirely
   enabled: true, // Set to false to completely disable messaging functionality
-  
+
   // Choose one protocol mode:
   // PROTOCOL_MODE.NIP04_ONLY - Force NIP-04 (legacy) only
   // PROTOCOL_MODE.NIP17_ONLY - Force NIP-17 (private) only

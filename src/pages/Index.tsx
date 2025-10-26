@@ -15,24 +15,24 @@ import { useAuthor } from '@/hooks/useAuthor';
 import { genUserName } from '@/lib/genUserName';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { NoteContent } from '@/components/NoteContent';
-import { RelaySelector } from '@/components/RelaySelector';
+
 
 const RECOVERY_TAGS = [
   // Primary Recovery Tags
   'recovery', 'sobriety', 'addiction', 'soberlife', 'odaat',
   'recoveryispossible', 'soberliving', 'addictionrecovery', 'mentalhealth',
-  
+
   // Program-Specific Tags
   '12steps', 'aa', 'na', 'smartrecovery', 'celebraterecovery',
-  
+
   // Support & Community Tags
   'recoverycommunity', 'sober', 'cleanandserene', 'recoverywarrior',
   'wedorecover', 'keepcoming', 'progressnotperfection',
-  
+
   // Substance-Specific Tags
   'alcoholfree', 'drugfree', 'substanceabuse', 'substanceusedisorder',
   'opioidcrisis', 'opioidrecovery',
-  
+
   // Wellness & Growth Tags
   'selfcare', 'healing', 'hope', 'gratitude', 'mindfulness',
   'mentalhealthmatters', 'breakthestigma', 'youarenotalone'
@@ -52,14 +52,14 @@ function PostCard({ event }: { event: NostrEvent }) {
   const metadata = author.data?.metadata;
   const displayName = metadata?.display_name || metadata?.name || genUserName(event.pubkey);
   const profileImage = metadata?.picture;
-  
+
   const tags = event.tags
     .filter(([name]) => name === 't')
     .map(([, value]) => value)
     .filter((tag): tag is string => !!tag);
-  
+
   const timeAgo = getTimeAgo(event.created_at);
-  
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <CardHeader className="pb-3">
@@ -101,7 +101,7 @@ function PostCard({ event }: { event: NostrEvent }) {
 
 function getTimeAgo(timestamp: number): string {
   const seconds = Math.floor(Date.now() / 1000 - timestamp);
-  
+
   if (seconds < 60) return 'just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -109,27 +109,46 @@ function getTimeAgo(timestamp: number): string {
   return `${Math.floor(seconds / 604800)}w ago`;
 }
 
+// Recovery-focused relays for maximum content discovery
+const RECOVERY_RELAYS = [
+  'wss://relay.nostr.band',
+  'wss://relay.damus.io',
+  'wss://relay.primal.net',
+  'wss://nos.lol',
+  'wss://relay.snort.social',
+  'wss://nostr.wine',
+  'wss://relay.mostr.pub',
+];
+
 function RecoveryFeed({ tags }: { tags: string[] }) {
   const { nostr } = useNostr();
-  
+
   const { data: events, isLoading, error } = useQuery({
     queryKey: ['recovery-feed', tags],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
-      
-      const fetchedEvents = await nostr.query(
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]);
+
+      // Query from multiple relays simultaneously for rich content discovery
+      const relayGroup = nostr.group(RECOVERY_RELAYS);
+
+      const fetchedEvents = await relayGroup.query(
         [{
           kinds: [1],
           '#t': tags,
-          limit: 50,
+          limit: 100, // Increased limit since we're querying multiple relays
         }],
         { signal }
       );
-      
-      return fetchedEvents.sort((a, b) => b.created_at - a.created_at);
+
+      // Remove duplicates based on event ID
+      const uniqueEvents = Array.from(
+        new Map(fetchedEvents.map(event => [event.id, event])).values()
+      );
+
+      return uniqueEvents.sort((a, b) => b.created_at - a.created_at);
     },
   });
-  
+
   if (isLoading) {
     return (
       <div className="grid gap-4">
@@ -154,42 +173,51 @@ function RecoveryFeed({ tags }: { tags: string[] }) {
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-12 px-8 text-center">
-          <div className="max-w-sm mx-auto space-y-4">
+          <div className="max-w-md mx-auto space-y-4">
             <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground/50" />
-            <p className="text-muted-foreground">
-              Unable to load recovery posts. Please try switching relays.
-            </p>
-            <RelaySelector className="w-full" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  if (!events || events.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-12 px-8 text-center">
-          <div className="max-w-sm mx-auto space-y-6">
-            <MessageCircle className="h-16 w-16 mx-auto text-muted-foreground/30" />
             <div className="space-y-2">
-              <h3 className="font-semibold text-lg">No posts found yet</h3>
+              <h3 className="font-semibold text-lg">Connection Issue</h3>
               <p className="text-sm text-muted-foreground">
-                Be the first to share your recovery journey, or try another relay to discover more content.
+                We're having trouble connecting to the Nostr network. Please check your internet connection and try again.
               </p>
             </div>
-            <RelaySelector className="w-full" />
           </div>
         </CardContent>
       </Card>
     );
   }
-  
+
+  if (!events || events.length === 0) {
+    return (
+      <Card className="border-dashed border-2">
+        <CardContent className="py-16 px-8 text-center">
+          <div className="max-w-md mx-auto space-y-6">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
+              <MessageCircle className="h-10 w-10 text-primary" />
+            </div>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-xl">No Posts Yet in This Category</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                This is a fresh space waiting for community voices. Be the pioneer who shares the first recovery story,
+                thought, or word of encouragement in this category.
+              </p>
+            </div>
+            <div className="pt-4">
+              <p className="text-xs text-muted-foreground">
+                We're searching across multiple Nostr relays to bring you the best content
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-4">
       {events.map((event) => (
@@ -202,26 +230,26 @@ function RecoveryFeed({ tags }: { tags: string[] }) {
 const Index = () => {
   const { user } = useCurrentUser();
   const [selectedCategory, setSelectedCategory] = useState('all');
-  
+
   useSeoMeta({
     title: 'SoberKey - Recovery Community on Nostr',
     description: 'A safe, decentralized space for recovery support, sobriety, and healing. Join our compassionate community built on the Nostr protocol.',
   });
-  
+
   const categoryTags: Record<string, string[]> = {
     all: ['recovery', 'sobriety', 'addiction', 'soberlife', 'odaat', 'recoveryispossible'],
     programs: ['12steps', 'aa', 'na', 'smartrecovery', 'celebraterecovery'],
     wellness: ['selfcare', 'healing', 'hope', 'gratitude', 'mindfulness', 'mentalhealthmatters'],
     community: ['recoverycommunity', 'sober', 'recoverywarrior', 'wedorecover', 'youarenotalone'],
   };
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/20 to-background">
       {/* Hero Header */}
       <header className="relative overflow-hidden border-b bg-gradient-to-br from-primary/10 via-secondary/5 to-background">
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
-        
+
         <div className="relative container mx-auto px-4 py-16 md:py-24">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             {/* Logo & Title */}
@@ -236,18 +264,18 @@ const Index = () => {
                 A decentralized sanctuary for recovery, healing, and hope
               </p>
             </div>
-            
+
             {/* Mission Statement */}
             <div className="bg-card/80 backdrop-blur-sm border rounded-2xl p-6 md:p-8 shadow-xl">
               <p className="text-base md:text-lg leading-relaxed text-foreground/90">
                 Built on the censorship-resistant Nostr protocol, SoberKey provides a{' '}
-                <span className="font-semibold text-primary">safe, judgment-free space</span> exclusively for 
+                <span className="font-semibold text-primary">safe, judgment-free space</span> exclusively for
                 recovery support and sobriety content. Whether you're{' '}
                 <span className="font-semibold text-secondary">one day or many years</span> into your journey,
                 you belong here.
               </p>
             </div>
-            
+
             {/* Auth Section */}
             <div className="pt-4">
               {!user ? (
@@ -272,7 +300,7 @@ const Index = () => {
           </div>
         </div>
       </header>
-      
+
       {/* Featured Recovery Tags */}
       <section className="border-b bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-8">
@@ -297,7 +325,7 @@ const Index = () => {
           </div>
         </div>
       </section>
-      
+
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto space-y-8">
@@ -314,7 +342,7 @@ const Index = () => {
                 </p>
               </CardContent>
             </Card>
-            
+
             <Card className="border-secondary/20 bg-gradient-to-br from-secondary/5 to-transparent">
               <CardHeader>
                 <Users className="h-8 w-8 text-secondary mb-2" />
@@ -326,7 +354,7 @@ const Index = () => {
                 </p>
               </CardContent>
             </Card>
-            
+
             <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent">
               <CardHeader>
                 <Sparkles className="h-8 w-8 text-purple-500 mb-2" />
@@ -339,7 +367,7 @@ const Index = () => {
               </CardContent>
             </Card>
           </div>
-          
+
           {/* Recovery Feed Tabs */}
           <Card className="shadow-xl">
             <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-secondary/5">
@@ -367,26 +395,26 @@ const Index = () => {
                     Community
                   </TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="all" className="space-y-4 mt-6">
                   <RecoveryFeed tags={categoryTags.all} />
                 </TabsContent>
-                
+
                 <TabsContent value="programs" className="space-y-4 mt-6">
                   <RecoveryFeed tags={categoryTags.programs} />
                 </TabsContent>
-                
+
                 <TabsContent value="wellness" className="space-y-4 mt-6">
                   <RecoveryFeed tags={categoryTags.wellness} />
                 </TabsContent>
-                
+
                 <TabsContent value="community" className="space-y-4 mt-6">
                   <RecoveryFeed tags={categoryTags.community} />
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
-          
+
           {/* All Recovery Tags */}
           <Card>
             <CardHeader>
@@ -398,9 +426,9 @@ const Index = () => {
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {RECOVERY_TAGS.map((tag) => (
-                  <Badge 
-                    key={tag} 
-                    variant="outline" 
+                  <Badge
+                    key={tag}
+                    variant="outline"
                     className="hover:bg-primary hover:text-primary-foreground cursor-pointer transition-colors"
                   >
                     #{tag}
@@ -409,7 +437,7 @@ const Index = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Footer Info */}
           <Card className="border-dashed bg-muted/30">
             <CardContent className="py-8 text-center space-y-4">
@@ -418,13 +446,13 @@ const Index = () => {
                 <span>One day at a time, together</span>
               </div>
               <p className="text-xs text-muted-foreground max-w-2xl mx-auto">
-                SoberKey is a community-driven platform. All content is created by members like you. 
+                SoberKey is a community-driven platform. All content is created by members like you.
                 If you're struggling, please reach out to professional help services in your area.
               </p>
               <div className="pt-4 text-xs text-muted-foreground">
-                <a 
-                  href="https://soapbox.pub/mkstack" 
-                  target="_blank" 
+                <a
+                  href="https://soapbox.pub/mkstack"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary transition-colors"
                 >
@@ -435,7 +463,7 @@ const Index = () => {
           </Card>
         </div>
       </main>
-      
+
       {/* Background Gradient Orbs */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
