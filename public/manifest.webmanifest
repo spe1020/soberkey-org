@@ -1,0 +1,9 @@
+{
+  "name": "SoberKey",
+  "short_name": "SoberKey",
+  "description": "A modern Nostr client application",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000"
+}
